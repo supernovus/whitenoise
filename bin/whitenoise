@@ -25,7 +25,7 @@ multi sub MAIN (:$conf!, :$list!) {
 
 multi sub MAIN (:$conf!, :$dir!) {
   if $dir.IO ~~ :d {
-    my @pages = dir($dir).map: { $dir~'/'~$_ };
+    my @pages = dir($dir).sort.map: { $dir~'/'~$_ };
     &MAIN(:$conf, |@pages);
   }
   else {

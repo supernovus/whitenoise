@@ -39,55 +39,203 @@ method generate ($file) {
   my $outfile = $!config<output> ~ self!page-path(%page);
   self!output-file($outfile, $pagecontent);
   if (%page<data>.exists('parent')) {
-    self!generate-story(%page);
+    self!process-story(%page);
   }
   else {
-    self!generate-indexes(%page);
+    self!process-indexes(%page);
   }
 }
 
 method !load-cache ($file) {
-  my $text = slurp($file);
-  my $json = from-json($text);
-  return $json;
+  if $file.IO ~~ :f {
+    say " *** Loading cache '$file'.";
+    my $text = slurp($file);
+    my $json = from-json($text);
+    return $json;
+  }
+  else {
+    say " *** Creating cache '$file'.";
+    return []; # default cache, an empty array.
+  }
+}
+
+method !save-cache($file, $data) {
+  my $text = to-json($data);
+  self!output-file($file, $text);
+}
+
+## We use the same 'add-to-list' method as indexes.
+method !process-story (%page) {
+  self!add-to-list(%page, 'story', %page<data><parent>);
 }
 
 ## Main routine to build indexes
-method !generate-indexes (%page) {
-  my $perpage = 10;
-  if ($!config.exists('indexes') && $!config<indexes>.exists('perpage')) {
-    $perpage = $!config<indexes><perpage>;
-  }
-  self!generate-main-index(%page);
+method !process-indexes (%page) {
+  ## First, add it to the main page.
+  self!add-to-list(%page);
   if %page<data>.exists('tags') {
     for @(%page<data><tags>) -> $tag {
-      self!generate-tag-index(%page, $tag);
+      self!add-to-list(%page, $tag);
     }
   }
 }
 
-## Build the main site index.
-method !generate-main-index(%page, $display=1) {
-  say "Generating main index:";
-  my $cachefile = self!index-cache('index');
-  my $indexfile = self!index-path($display);
-  say " - Using cache: $cachefile";
-  say " - Using page: $indexfile";
+## Add pages to indexes or stories.
+method !add-to-list (%page, $tag?, $story?) {
+  my $name = 'main';
+  if ($tag) { $name = $tag; }
+  say "Generating $name index:";
+  my $cachefile; 
+  if ($story) {
+    $cachefile = self!story-cache($story);
+  }
+  else {
+    $cachefile = self!index-cache($tag);
+  }
+  my $cache = self!load-cache($cachefile);
+  my $pagelink = self!page-path(%page);
+  say " - Adding $pagelink to index...";
+  if $cache.elems > 0 { ## If there are items, check for this page.
+    loop (my $i=0; $i < $cache.elems; $i++) {
+      if $cache[$i]<link> eq $pagelink {
+        say " * Updating '$pagelink' in cache.";
+        $cache.splice($i, 1);
+      }
+    }
+  }
+  my $updated = DateTime.now;
+  my $snippet = %page<xml>.elements(:id<snippet>);
+  if ($snippet.elems > 0) {
+    $snippet = $snippet[0];
+  }
+  else {
+    $snippet = %page<xml>.elements()[0];
+  }
+
+  my $pagedata = %page<data>.clone;
+  $pagedata.delete('content');
+
+  my $pagedef = {
+    'link'      => $pagelink,
+    'title'     => $pagedata<title>,
+    'updated'   => ~$updated,
+    'snippet'   => ~$snippet,
+  };
+
+  ## Lets add any tag links.
+  if $pagedata.exists('tags') {
+    my @tags;
+    for @($pagedata<tags>) -> $pagetag {
+      my $taglink = self!index-path(1, $pagetag);
+      my $tagdef = {
+        'name'   => $pagetag,
+        'link'   => $taglink,
+      };
+      @tags.push: $tagdef;
+    }
+    $pagedef<tags> = @tags;
+  }
+
+  ## And now, for some magic tricks.
+  ## If your templates need extra fields from the
+  ## page data, you can include a field called
+  ## 'index' which is an array of data fields to include.
+  if $pagedata.exists('index') {
+    for @($pagedata<index>) -> $section {
+      if ($section == 'link' | 'title' | 'updated' | 'snippet' | 'tags') {
+        ## Skip any sections that we shouldn't be overriding.
+        next;
+      }
+      if $pagedata.exists($section) {
+        $pagedef{$section} = $pagedata{$section};
+      }
+    }
+  }
+
+  if ($story) {
+    $cache.push: $pagedef;
+  }
+  else {
+    $cache.unshift: $pagedef;
+  }
+
+  self!save-cache($cachefile, $cache);
+
+  ## Now, let's build the index pages.
+  if ($story) {
+    self!build-story($cache, $story);
+  }
+  else {
+    self!build-index(1, $cache, $tag);
+  }
+
 }
 
-## Build tag-based indexes.
-method !generate-tag-index (%page, $tag, $display=1) {
-  say "Generating $tag index:";
-  my $cachefile = self!index-cache($tag);
-  my $indexfile = self!index-path($display, $tag);
-  say " - Using cache: $cachefile";
-  say " - Using page: $indexfile";
+## Build index pages
+method !build-index ($page, $index, $tag?, $pagelimit?) {
+  my $perpage;
+  if $pagelimit { $perpage = $pagelimit; }
+  elsif ($!config.exists('indexes') && $!config<indexes>.exists('perpage')) {
+    $perpage = $!config<indexes><perpage>;
+  }
+  else {
+    $perpage = 10;
+  }
+  my $from = ($perpage * $page) - $perpage;
+  my $to   = ($perpage * $page) - 1;
+#say " ** from $from to $to **";
+  if $to > $index.end { $to = $index.end; }
+#say " -- from $from to $to --";
+  my $pages = ($index.elems / $perpage).ceiling;
+  my @items = $index[ $from .. $to ];
+  my @pager = [ 1 .. $pages ];
+  my $pager = [];
+  for @pager -> $pagecount {
+    my $pagelink = self!index-path($pagecount, $tag);
+    my $current = False;
+    if ($pagecount == $page) {
+      $current = True;
+    }
+    my $pagerdef = {
+      'num'     => $pagecount,
+      'link'    => $pagelink,
+      'current' => $current,
+    };
+    $pager.push($pagerdef);
+  }
+
+  my %pagedef = {
+    'type' => 'index',
+    'data' => {
+      'count'    => $pages,
+      'current'  => $page,
+      'pager'    => $pager,
+      'items'    => $index,
+      'size'     => $index.elems,
+      'tag'      => $tag,
+    },
+  };
+
+  my $content = self!parse-page(%pagedef);
+  my $outfile = $!config<output> ~ self!index-path($page, $tag);
+  self!output-file($outfile, $content);
+
+  if $to < $index.end {
+    self!build-index($page+1, $index, $tag, $perpage);
+  }
 }
 
-## Build stories
-method !generate-story (%page) {
-  print " - Generating story... ";
-  say "skipped, not implemented yet.";
+## Build story pages
+method !build-story ($index, $page) {
+  my %story = self!get-page($page);
+  %story<type> = 'story';
+  %story<data><items> = $index;
+  %story<data><size> = $index.elems;
+  
+  my $content = self!parse-page(%story);
+  my $outfile = $!config<output> ~ self!story-path($page);
+  self!output-file($outfile, $content);
+  self!process-indexes(%story);
 }
 
 ## Take a file, get the content and the metadata from it.
@@ -150,7 +298,8 @@ method !parse-page (%page is rw) {
   print " - Parsing template... ";
   ## Let's get the template, and generate the page itself.
   my $template = $!config<templates>{$type};
-  if (defined($!flower)) {
+  if (defined $!flower) {
+    print " replanting Flower, ";
     $!flower.=another(:file($template));
   }
   else {
@@ -263,7 +412,8 @@ method !story-path ($file) {
 }
 
 ## Cache path for indexes
-method !index-cache ($tag) {
+method !index-cache ($tag? is copy) {
+  if ! defined $tag { $tag = 'index'; }
   my $dir = './cache/indexes';
   if ($!config.exists('indexes') && $!config<indexes>.exists('folder')) {
     $dir = $!config<indexes><folder>;
