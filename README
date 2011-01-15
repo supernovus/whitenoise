@@ -19,7 +19,7 @@ simple blog-like sites, such as say huri.net.
 
  * Based on the same core technologies as ww6:
    - JSON for metadata/configuration files.
-   - XML with PETAL processing for templates/articles.
+   - XML for templates/articles.
  * Generates static websites only, this is NOT ww6.
  * Does not handle URLs, (S)CGI, etc. This is NOT ww6.
  * There are two kinds of plugins supported.

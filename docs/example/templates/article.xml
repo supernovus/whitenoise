@@ -20,6 +20,9 @@ content goes here
 </tal:block>
 </dl>
 </div>
-<div id="copyright">Copyright &copy; 2011, Timothy Totten. Site powered by WhiteNoise.</div>
+<div id="copyright">
+Copyright &copy; 2011, Timothy Totten. 
+Site powered by WhiteNoise.
+</div>
 </body>
 </html>

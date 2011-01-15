@@ -46,10 +46,42 @@ method generate ($file) {
   }
 }
 
-## Build indexes
+method !load-cache ($file) {
+  my $text = slurp($file);
+  my $json = from-json($text);
+  return $json;
+}
+
+## Main routine to build indexes
 method !generate-indexes (%page) {
-  print " - Generating indexes... ";
-  say "skipped, not implemented yet.";
+  my $perpage = 10;
+  if ($!config.exists('indexes') && $!config<indexes>.exists('perpage')) {
+    $perpage = $!config<indexes><perpage>;
+  }
+  self!generate-main-index(%page);
+  if %page<data>.exists('tags') {
+    for @(%page<data><tags>) -> $tag {
+      self!generate-tag-index(%page, $tag);
+    }
+  }
+}
+
+## Build the main site index.
+method !generate-main-index(%page, $display=1) {
+  say "Generating main index:";
+  my $cachefile = self!index-cache('index');
+  my $indexfile = self!index-path($display);
+  say " - Using cache: $cachefile";
+  say " - Using page: $indexfile";
+}
+
+## Build tag-based indexes.
+method !generate-tag-index (%page, $tag, $display=1) {
+  say "Generating $tag index:";
+  my $cachefile = self!index-cache($tag);
+  my $indexfile = self!index-path($display, $tag);
+  say " - Using cache: $cachefile";
+  say " - Using page: $indexfile";
 }
 
 ## Build stories
@@ -149,7 +181,7 @@ method !output-file ($file, $content) {
   my $fh = open $file, :w;
   $fh.say: $content;
   $fh.close;
-  say " - Generated page: '$file'.";
+  say " - Generated file: '$file'.";
 }
 
 ## Create output folders.
@@ -197,7 +229,7 @@ method !page-path (%page) {
 }
 
 ## Paths for indexes
-method !index-path ($tag='', $page=1) {
+method !index-path ($page=1, $tag?) {
   my $dir = '/';
   if ($tag) {
     $dir = "/tags/$tag/";
@@ -231,7 +263,7 @@ method !story-path ($file) {
 }
 
 ## Cache path for indexes
-method !index-cache ($tag='default') {
+method !index-cache ($tag) {
   my $dir = './cache/indexes';
   if ($!config.exists('indexes') && $!config<indexes>.exists('folder')) {
     $dir = $!config<indexes><folder>;
