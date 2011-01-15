@@ -1,0 +1,78 @@
+WhiteNoise: A Static Site Builder
+------------------------------------
+
+= Introduction =
+
+WhiteNoise is a Perl 6 application for building and maintaining static websites.
+It is loosely based on my Webtoo Websight series of web frameworks, and borrows
+many things from the Perl 6 version known as ww6.
+
+Unlike ww6, it is not a "general purpose framework". Where ww6 can be used
+to build any kind of web application, WhiteNoise does only one thing:
+It builds static websites.
+
+The key word here is static. While ww6 is meant for building dynamic sites
+powered by SCGI, and using great things like AJAX, this is meant for building
+simple blog-like sites, such as say huri.net.
+
+= Key Features =
+
+ * Based on the same core technologies as ww6:
+   - JSON for metadata/configuration files.
+   - XML with PETAL processing for templates/articles.
+ * Generates static websites only, this is NOT ww6.
+ * Does not handle URLs, (S)CGI, etc. This is NOT ww6.
+ * There are two kinds of plugins supported.
+   - Page plugins are specific to WhiteNoise pages.
+     One comes with WhiteNoise, see below.
+   - Flower plugins, are used on the templates.
+     A set of these come with Flower itself.
+ * Site templates are TAL templates, parsed using Flower.
+   They are referenced to from the site config.
+ * Templates will be even simpler once Flower supports METAL macros.
+ * Indexes are tag-based.
+ * Articles are XML snippets, with JSON meta-data.
+ * Stories are collections of articles, that show up as a single
+   entry in the indexes. Articles that belong to stories do not have
+   individual tags.
+ * A paragraph, div or span marked with 'id'=>'snippet' will be used
+   as the short description of the page for indexes.
+ * If you don't specify a 'snippet', the first node found will be
+   used as the snippet instead.
+ * An example Page Plugin is included: References.
+   This plugin looks for <a ref:site="name">term</a>
+   or <a ref:site="name" ref:term="term">description</a>
+   links, and looks up the reference URL in the site config.
+   The reference URL must have a '%s' which will be replaced by the
+   term. The example config has Wikipedia as a reference site with the
+   site key 'wp', so you could lookup <a ref:site="wp">Perl 6</a> with
+   a simple tag like that.
+
+= Usage =
+
+After setting up a site configuration (see docs/example/),
+you can generate your site by doing:
+
+ $ whitenoise --conf ./mysite.json ./pages/2011/first.xml
+
+Where the xml file is the page to generate. You can specify
+multiple pages on the command line. You can also make a list of
+pages in a text file, and use:
+
+ $ whitenoise --conf ./mysite.json --list ./pages.txt
+
+Or if you don't care about the order the pages are added to
+the indexes, you can just tell it to process an entire directory:
+
+ $ whitenoise --conf ./mysite.json --dir ./pages
+
+Presto, that's it. Your pages are generated and added to any
+applicable indexes and/or stories.
+
+= Summary =
+
+It's an interesting way to build a site.
+
+This was created specifically for huri.net, but can be used
+for other sites if you really feel like it.
+

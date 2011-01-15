@@ -1,0 +1,45 @@
+{
+  "site" :
+  {
+    "title" : "My site",
+    "links" :
+    [
+      { 
+        "url"     : "http://xkcd.com/",
+        "title"   : "XKCD"
+      },
+      { 
+        "url"     : "http://whatisjargon.com/",
+        "title"   : "jargon"
+      }
+    ]
+  },
+  "plugins" : [ "References" ],
+  "refs"  :
+  {
+    "wp" : "http://en.wikipedia.org/wiki/Special:Search?search=%s"
+  },
+  "templates" :
+  {
+    "plugins"   : [ "Date" ],
+    "article"   : "./templates/article.xml",
+    "story"     : "./templates/story.xml",
+    "index"     : "./templates/index.xml",
+    "atom"      : "./templates/atom.xml",
+    "rss"       : "./templates/rss.xml"
+  },
+  "output"  : "./htdocs",
+  "indexes" :
+  {
+    "folder"   : "./cache/indexes",
+    "perpage"  : 15
+  },
+  "stories" :
+  {
+    "folder"   : "./cache/stories"
+  },
+  "syndication" :
+  {
+    "storycount" : 25
+  }
+}

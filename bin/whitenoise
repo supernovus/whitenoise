@@ -1,0 +1,35 @@
+#!/usr/bin/env perl6
+
+## This is just a wrapper for the WhiteNoise application.
+## See WhiteNoise.pm6 for the implementation.
+
+use v6;
+use WhiteNoise;
+
+multi sub MAIN (:$conf!, *@pages) {
+  my $wn = WhiteNoise.new(:$conf);
+  for @pages -> $page {
+    $wn.generate($page);
+  }
+}
+
+multi sub MAIN (:$conf!, :$list!) {
+  if $list.IO ~~ :f {
+    my @pages = lines($list);
+    &MAIN(:$conf, |@pages);
+  }
+  else {
+    die "invalid list file specified";
+  }
+}
+
+multi sub MAIN (:$conf!, :$dir!) {
+  if $dir.IO ~~ :d {
+    my @pages = dir($dir).map: { $dir~'/'~$_ };
+    &MAIN(:$conf, |@pages);
+  }
+  else {
+    die "invalid directory specified";
+  }
+}
+
