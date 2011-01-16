@@ -1,14 +1,15 @@
 <page note="the top level element will be stripped">
 <p>
-This is a boring test article. It shows how articles appear by default.
-</p>
-<p>
 There's not much on here yet. I will use this as an example of how the
 Reference plugin works though. If you want references, we got references.
 Maybe an article from <a ref:site="wp">wikipedia</a>,
 or a video from <a ref:site="wp" ref:term="Youtube">that famous video site</a>.
 Whatever floats your boat.
 </p>
+<p>
+There are more paragraphs, but they aren't very interesting either.
+</p>
+
 <json id="metadata" note="the metadata element will be stripped">
 {
   "title" : "An Article",

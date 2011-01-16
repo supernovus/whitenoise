@@ -112,8 +112,7 @@ method !add-to-list (%page, $tag?, $story?) {
     $snippet = %page<xml>.elements()[0];
   }
 
-  my $pagedata = %page<data>.clone;
-  $pagedata.delete('content');
+  my $pagedata = %page<data>;
 
   my $pagedef = {
     'link'      => $pagelink,
@@ -142,7 +141,9 @@ method !add-to-list (%page, $tag?, $story?) {
   ## 'index' which is an array of data fields to include.
   if $pagedata.exists('index') {
     for @($pagedata<index>) -> $section {
-      if ($section == 'link' | 'title' | 'updated' | 'snippet' | 'tags') {
+      if ($section == 'link' | 'title' | 'updated' | 'snippet' 
+        | 'tags' | 'content' ) 
+      {
         ## Skip any sections that we shouldn't be overriding.
         next;
       }
