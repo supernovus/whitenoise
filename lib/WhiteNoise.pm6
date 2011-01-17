@@ -15,6 +15,13 @@ has $.config;
 has %!cache;
 has %!plugins;
 
+## Pages to build
+has @!pages;
+## Stories to build
+has %!stories;
+## Indexes to build
+has %!indexes;
+
 submethod BUILD (:$conf!) {
   if $conf.IO !~~ :f { die "missing configuration file"; }
   my $text = slurp($conf);
@@ -30,9 +37,45 @@ submethod BUILD (:$conf!) {
   $!config := $json;
 }
 
-## The main routine that starts this process.
-method generate ($file) {
-  if $file.IO !~~ :f { say "skipping invalid file '$file'..."; return; }
+## Add a page to the build queue.
+method add-page ($file) {
+  if $file.IO !~~ :f { say "skipping missing page '$file'..."; return; }
+  @!pages.push: $file;
+}
+
+## Add a story to the build queue.
+method add-story ($cache, $file) {
+  if $file.IO !~~ :f { say "skipping missing story '$file'..."; return; }
+  %!stories{$file} = $cache;
+}
+
+## Add an index to the build queue.
+method add-index ($cache, $tag?) {
+  my $key = 'index';
+  if ($tag) { $key = $tag; }
+  %!indexes{$key} = $cache;
+}
+
+## The main process that starts the build
+method generate () {
+  for @!pages -> $page {
+    self!build-page($page);
+  }
+  for %!stories.kv -> $file, $cache {
+    self!build-story($cache, $file);
+  }
+  for %!indexes.kv -> $tag, $cache {
+    if ($tag eq 'index') {
+      self!build-index(1, $cache);
+    }
+    else {
+      self!build-index(1, $cache, $tag);
+    }
+  }
+}
+
+## Build a page. This is the most basic of the building methods.
+method !build-page ($file) {
   say "Processing '$file': ";
   my %page = self!get-page($file);
   my $pagecontent = self!parse-page(%page);
@@ -162,12 +205,12 @@ method !add-to-list (%page, $tag?, $story?) {
 
   self!save-cache($cachefile, $cache);
 
-  ## Now, let's build the index pages.
+  ## Now, let's add the story/index to the build queue.
   if ($story) {
-    self!build-story($cache, $story);
+    self.add-story($cache, $story);
   }
   else {
-    self!build-index(1, $cache, $tag);
+    self.add-index($cache, $tag);
   }
 
 }
@@ -339,6 +382,18 @@ method !make-output-path ($folder) {
   mkdir $!config<output> ~ $folder, :p;
 }
 
+## Extract the root from a filename.
+method !get-filename ($file) {
+  if %!cache.exists("filename::$file") {
+    return %!cache{"filename::$file"};
+  }
+  my @filepath = $file.subst(/\/$/, '').split('/');
+  my $filename = @filepath[@filepath.end];
+  $filename ~~ s:g/\.xml$//;
+  %!cache{"filename::$file"} = $filename;
+  return $filename;
+}
+
 ## Paths for pages (articles and story chapters.)
 method !page-path (%page) {
   my $file = %page<file>;
@@ -346,15 +401,14 @@ method !page-path (%page) {
   if (%!cache.exists($file)) {
     return %!cache{$file};
   }
-  my @filepath = $file.subst(/\/$/, '').split('/');
-  my $filename = @filepath[@filepath.end];
-  $filename ~~ s:g/\.xml$//;
+  my $filename = self!get-filename($file);
+
   my $dir;
   if ($opts.exists('parent')) { 
-    $dir = 'stories/' ~ $opts<parent>; 
+    $dir = self!story-folder($opts<parent>);
   }
   else {
-    $dir = 'articles';
+    $dir = '/articles';
     if ($opts.exists('changelog')) { # Please put changelog in newest first.
       my $cl = $opts<changelog>;
       my $last = $cl[$cl.end];
@@ -371,9 +425,8 @@ method !page-path (%page) {
       $dir ~= '/' ~ $year ~ '/' ~ $month;
     }
   }
-  my $folder = '/' ~ $dir;
-  self!make-output-path($folder);
-  my $outpath = $folder ~ '/' ~ $filename ~ '.html';
+  self!make-output-path($dir);
+  my $outpath = $dir ~ '/' ~ $filename ~ '.html';
   %!cache{$file} = $outpath;
   return $outpath;
 }
@@ -396,16 +449,24 @@ method !index-path ($page=1, $tag?) {
   return $outpath;
 }
 
+## Story paths are used both for the story index
+## and the story pages. So, here's the common version.
+method !story-folder ($file) {
+  if %!cache.exists("folder::$file") {
+    return %!cache{"folder::$file"};
+  }
+  my $filename = self!get-filename($file);
+  my $folder = '/stories/' ~ $filename;
+  %!cache{"folder::$file"} = $folder;
+  return $folder;
+}
+
 ## The path for the story table of contents.
 method !story-path ($file) {
   if (%!cache.exists($file)) {
     return %!cache{$file};
   }
-  my @filepath = $file.subst(/\/$/, '').split('/');
-  my $filename = @filepath[@filepath.end];
-  $filename ~~ s:g/\.xml$//;
-
-  my $folder = '/stories/' ~ $filename;
+  my $folder = self!story-folder($file);
   self!make-output-path($folder);
   my $outpath = $folder ~ '/index.html';
   %!cache{$file} = $outpath;
@@ -428,9 +489,7 @@ method !story-cache ($file) {
   if (%!cache.exists("story::$file")) {
     return %!cache{"story::$file"};
   }
-  my @filepath = $file.subst(/\/$/, '').split('/');
-  my $filename = @filepath[@filepath.end];
-  $filename ~~ s:g/\.xml$//;
+  my $filename = self!get-filename($file);
 
   my $dir = './cache/stories';
   if ($!config.exists('stories') && $!config<stories>.exists('folder')) {

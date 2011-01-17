@@ -9,8 +9,9 @@ use WhiteNoise;
 multi sub MAIN (:$conf!, *@pages) {
   my $wn = WhiteNoise.new(:$conf);
   for @pages -> $page {
-    $wn.generate($page);
+    $wn.add-page($page);
   }
+  $wn.generate();
 }
 
 multi sub MAIN (:$conf!, :$list!) {
@@ -32,4 +33,5 @@ multi sub MAIN (:$conf!, :$dir!) {
     die "invalid directory specified";
   }
 }
+
 
