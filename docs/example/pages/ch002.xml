@@ -8,8 +8,15 @@ But it was needed to show how stories are ordered in the listing.
 
 <json id="metadata">
 {
-  "title"  : "Chapter 2",
-  "parent" : "./stories/a-fine-story.xml"
+  "title"     : "Chapter 2",
+  "parent"    : "./stories/a-fine-story.xml",
+  "changelog" :
+  [
+    { 
+      "date"    : "2011-01-16T15:30:25-0800",
+      "comment" : "Added chapter 2"
+    }
+  ]
 }
 </json>
 </page>

@@ -16,7 +16,7 @@ has %!cache;
 has %!plugins;
 
 ## Pages to build
-has @!pages;
+has %!pages;
 ## Stories to build
 has %!stories;
 ## Indexes to build
@@ -40,7 +40,7 @@ submethod BUILD (:$conf!) {
 ## Add a page to the build queue.
 method add-page ($file) {
   if $file.IO !~~ :f { say "skipping missing page '$file'..."; return; }
-  @!pages.push: $file;
+  %!pages{$file} = True;
 }
 
 ## Add a story to the build queue.
@@ -58,7 +58,7 @@ method add-index ($cache, $tag?) {
 
 ## The main process that starts the build
 method generate () {
-  for @!pages -> $page {
+  for %!pages.keys -> $page {
     self!build-page($page);
   }
   for %!stories.kv -> $file, $cache {
@@ -70,6 +70,30 @@ method generate () {
     }
     else {
       self!build-index(1, $cache, $tag);
+    }
+  }
+}
+
+## Re-generate from an index. By default, the site index.
+method regenerate ($index?, $story?) {
+  my $cache;
+  if ($index) {
+    $cache = $index;
+  }
+  else {
+    $cache = self!index-cache();
+  }
+  my $listing = self!load-cache($cache);
+  if (!$story) {
+    $listing.=reverse; ## Process in reverse order.
+  }
+  for @($listing) -> $item {
+    if $item<type> eq 'article' { 
+      self.add-page($item<file>);
+    }
+    elsif $item<type> eq 'story' {
+      my $story = self!story-cache($item<file>);
+      self.regenerate($story, True);
     }
   }
 }
@@ -89,20 +113,28 @@ method !build-page ($file) {
   }
 }
 
-method !load-cache ($file) {
+method !load-cache ($file, $needcache?) {
+  if %!cache.exists("cache::$file") {
+    return %!cache{"cache::$file"};
+  }
   if $file.IO ~~ :f {
     say " *** Loading cache '$file'.";
     my $text = slurp($file);
     my $json = from-json($text);
+    %!cache{"cache::$file"} = $json;
     return $json;
   }
   else {
+    if $needcache {
+      die "cache file '$file' is missing.";
+    }
     say " *** Creating cache '$file'.";
     return []; # default cache, an empty array.
   }
 }
 
 method !save-cache($file, $data) {
+  %!cache{"cache::$file"} = $data;
   my $text = to-json($data);
   self!output-file($file, $text);
 }
@@ -146,7 +178,28 @@ method !add-to-list (%page, $tag?, $story?) {
       }
     }
   }
-  my $updated = DateTime.now;
+
+  my $pagedata = %page<data>;
+
+  ## We have a few methods to find out when a page was updated.
+  my $updated;
+  if $pagedata.exists('updated') {
+    $updated = DateTime.new(~$pagedata<updated>);
+  }
+  elsif $pagedata.exists('changelog') {
+    my $newest = $pagedata<changelog>[0]<date>;
+    $updated = DateTime.new(~$newest);
+  }
+  elsif $pagedata.exists('items') {
+    my $pageitems = $pagedata<items>;
+    my $lastitem = $pageitems[$pageitems.end];
+    my $lastdate = $lastitem<updated>;
+    $updated = DateTime.new($lastdate);
+  }
+  else {
+    $updated = DateTime.now;
+  }
+
   my $snippet = %page<xml>.elements(:id<snippet>);
   if ($snippet.elems > 0) {
     $snippet = $snippet[0];
@@ -155,9 +208,14 @@ method !add-to-list (%page, $tag?, $story?) {
     $snippet = %page<xml>.elements()[0];
   }
 
-  my $pagedata = %page<data>;
+  my $type = 'article';
+  if (%page.exists('type')) {
+    $type = %page<type>;
+  }
 
   my $pagedef = {
+    'type'      => $type,
+    'file'      => %page<file>,
     'link'      => $pagelink,
     'title'     => $pagedata<title>,
     'updated'   => ~$updated,

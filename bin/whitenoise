@@ -34,4 +34,21 @@ multi sub MAIN (:$conf!, :$dir!) {
   }
 }
 
+multi sub MAIN (:$conf!, :$index!) {
+  my $wn = WhiteNoise.new(:$conf);
+  $wn.regenerate($index);
+  $wn.generate();
+}
+
+multi sub MAIN (:$conf!, :$story!) {
+  my $wn = WhiteNoise.new(:$conf);
+  $wn.regenerate($story, True);
+  $wn.generate();
+}
+
+multi sub MAIN (:$conf!, Bool :$regenerate!) {
+  my $wn = WhiteNoise.new(:$conf);
+  $wn.regenerate();
+  $wn.generate();
+}
 
