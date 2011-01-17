@@ -1,0 +1,15 @@
+{
+  "name"        : "WhiteNoise",
+  "version"     : "*",
+  "description" : "A static website generator",
+  "depends"     : 
+  [ 
+    "Exemel",
+    "Flower",
+    "JSON::Tiny",
+    "DateTime::Utils",
+    "File::Tools"
+  ],
+  "repo-type"   : "git",
+  "repo-url"    : "git://github.com/supernovus/whitenoise.git"
+}
