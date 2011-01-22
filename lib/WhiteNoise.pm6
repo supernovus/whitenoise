@@ -555,20 +555,22 @@ method !page-path (%page) {
   }
   else {
     $dir = '/articles';
-    $date = False;
-    if ($opts.exists('updated')) {
-      $date = $opts<updated>;
-    }
-    elsif ($opts.exists('changelog')) { # Please put changelog in newest first.
-      my $cl = $opts<changelog>;
-      my $last = $cl[$cl.end];
-      $date = $last<date>;
-    }
-    if ($date) {
-      my $dt = self!get-datetime($date);
-      my $year = $dt.year;
-      my $month = '%02d'.sprintf($dt.month);
-      $dir ~= '/' ~ $year ~ '/' ~ $month;
+    if !$opts<toplevel> {
+      my $date = False;
+      if ($opts.exists('updated')) {
+        $date = $opts<updated>;
+      }
+      elsif ($opts.exists('changelog')) { # Please put changelog in newest first.
+        my $cl = $opts<changelog>;
+        my $last = $cl[$cl.end];
+        $date = $last<date>;
+      }
+      if ($date) {
+        my $dt = self!get-datetime($date);
+        my $year = $dt.year;
+        my $month = '%02d'.sprintf($dt.month);
+        $dir ~= '/' ~ $year ~ '/' ~ $month;
+      }
     }
   }
   self!make-output-path($dir);
