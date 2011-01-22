@@ -289,8 +289,11 @@ method !add-to-list (%page, $tag?, $story?) {
   }
 
   ## Put things in there place.
+  ## We now default to 'smartlist' mode.
+  ## If you want the old 'dumb' behavior,
+  ## add "smartlist" : 0 in your config.
   my $added = False;
-  my $smartlist = False;
+  my $smartlist = True;
   if ($.config.exists('smartlist')) {
     $smartlist = $.config<smartlist>;
   }
