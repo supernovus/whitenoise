@@ -13,6 +13,7 @@ However, it was a good example of how stories work in WhiteNoise.
 {
   "title"     : "Chapter 1",
   "parent"    : "./stories/a-fine-story.xml",
+  "chapter"   : 1,
   "changelog" :
   [
     {

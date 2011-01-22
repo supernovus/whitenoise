@@ -10,6 +10,7 @@ But it was needed to show how stories are ordered in the listing.
 {
   "title"     : "Chapter 2",
   "parent"    : "./stories/a-fine-story.xml",
+  "chapter"   : 2,
   "changelog" :
   [
     { 

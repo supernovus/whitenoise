@@ -29,7 +29,6 @@ simple blog-like sites, such as say huri.net.
      A set of these come with Flower itself.
  * Site templates are TAL templates, parsed using Flower.
    They are referenced to from the site config.
- * Templates will be even simpler once Flower supports METAL macros.
  * Indexes are tag-based.
  * Articles are XML snippets, with JSON meta-data.
  * Stories are collections of articles, that show up as a single
@@ -68,6 +67,23 @@ the indexes, you can just tell it to process an entire directory:
 
 Presto, that's it. Your pages are generated and added to any
 applicable indexes and/or stories.
+
+I am also adding support for rebuilding pages based on cache files.
+
+So if you wanted to rebuild all the pages in a story, you'd do:
+
+  $ whitenoise --conf ./mysite.json --story ./cache/stories/my-story.json
+
+Alternatively, if you wanted to rebuild all the pages with a certain tag:
+
+  $ whitenoise --config ./mysite.json --index ./cache/indexes/my-tag.json
+
+Finally, if you just wanted to rebuild the entire site:
+
+  $ whitenoise --config ./mysite.json --regenerate
+
+Rebuilding the whole site may take a long time, so use that one with
+care. More options will probably emerge as I work on this thing.
 
 = Summary =
 

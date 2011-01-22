@@ -16,6 +16,7 @@
     "index"     : "./templates/index.xml"
   },
   "output"  : "./htdocs",
+  "smartlist" : 1,
   "indexes" :
   {
     "folder"   : "./cache/indexes",

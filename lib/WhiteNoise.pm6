@@ -9,10 +9,20 @@ use JSON::Tiny;
 use Exemel;
 use Flower;
 use File::Mkdir;
+use DateTime::Math; ## Included with DateTime::Utils.
 
 has $!flower;
 has $.config;
-has %!cache;
+
+## Caches for optimization purposes.
+has %!cache-cache;
+has %!page-cache;
+has %!story-cache;
+has %!folder-cache;
+has %!file-cache;
+has %!date-cache;
+
+## Page Plugins.
 has %!plugins;
 
 ## Pages to build
@@ -72,6 +82,8 @@ method generate () {
       self!build-index(1, $cache, $tag);
     }
   }
+  ## Now we save caches to disk.
+  self!save-caches();
 }
 
 ## Re-generate from an index. By default, the site index.
@@ -114,14 +126,14 @@ method !build-page ($file) {
 }
 
 method !load-cache ($file, $needcache?) {
-  if %!cache.exists("cache::$file") {
-    return %!cache{"cache::$file"};
+  if %!cache-cache.exists($file) {
+    return %!cache-cache{$file};
   }
   if $file.IO ~~ :f {
     say " *** Loading cache '$file'.";
     my $text = slurp($file);
     my $json = from-json($text);
-    %!cache{"cache::$file"} = $json;
+    %!cache-cache{$file} = $json;
     return $json;
   }
   else {
@@ -133,10 +145,17 @@ method !load-cache ($file, $needcache?) {
   }
 }
 
+## This used to write to disk, now it just caches in memory.
 method !save-cache($file, $data) {
-  %!cache{"cache::$file"} = $data;
-  my $text = to-json($data);
-  self!output-file($file, $text);
+  %!cache-cache{$file} = $data;
+}
+
+## Now we save all file caches at once.
+method !save-caches () {
+  for %!cache-cache.kv -> $file, $data {
+    my $text = to-json($data);
+    self!output-file($file, $text);
+  }
 }
 
 ## We use the same 'add-to-list' method as indexes.
@@ -155,11 +174,28 @@ method !process-indexes (%page) {
   }
 }
 
+## Handles different datetime formats.
+method !get-datetime ($updated) {
+  if %!date-cache.exists($updated) {
+    return %!date-cache{$updated};
+  }
+  my $dt;
+#  say " >> Datestamp: $updated";
+  if ($updated ~~ Int || $updated ~~ /^\d+$/) { ## If we find an epoch value.
+    $dt = DateTime.new($updated.Int);
+  }
+  else {
+    $dt = DateTime.new(~$updated);
+  }
+  %!date-cache{$updated} = $dt;
+  return $dt;
+}
+
 ## Add pages to indexes or stories.
 method !add-to-list (%page, $tag?, $story?) {
   my $name = 'main';
   if ($tag) { $name = $tag; }
-  say "Generating $name index:";
+  #say "Generating $name index:";
   my $cachefile; 
   if ($story) {
     $cachefile = self!story-cache($story);
@@ -169,35 +205,28 @@ method !add-to-list (%page, $tag?, $story?) {
   }
   my $cache = self!load-cache($cachefile);
   my $pagelink = self!page-path(%page);
-  say " - Adding $pagelink to index...";
-  if $cache.elems > 0 { ## If there are items, check for this page.
-    loop (my $i=0; $i < $cache.elems; $i++) {
-      if $cache[$i]<link> eq $pagelink {
-        say " * Updating '$pagelink' in cache.";
-        $cache.splice($i, 1);
-      }
-    }
-  }
-
+  #say " - Adding $pagelink to index...";
   my $pagedata = %page<data>;
 
   ## We have a few methods to find out when a page was updated.
   my $updated;
   if $pagedata.exists('updated') {
-    $updated = DateTime.new(~$pagedata<updated>);
+    $updated = self!get-datetime($pagedata<updated>);
   }
   elsif $pagedata.exists('changelog') {
     my $newest = $pagedata<changelog>[0]<date>;
-    $updated = DateTime.new(~$newest);
+    $updated = self!get-datetime($pagedata<changelog>[0]<date>);
   }
   elsif $pagedata.exists('items') {
     my $pageitems = $pagedata<items>;
     my $lastitem = $pageitems[$pageitems.end];
     my $lastdate = $lastitem<updated>;
-    $updated = DateTime.new($lastdate);
+    $updated = self!get-datetime($lastdate);
   }
+  ## If none of the above worked, make it now.
   else {
     $updated = DateTime.now;
+    %!date-cache{$updated.Str} = $updated;
   }
 
   my $snippet = %page<xml>.elements(:id<snippet>);
@@ -236,6 +265,11 @@ method !add-to-list (%page, $tag?, $story?) {
     $pagedef<tags> = @tags;
   }
 
+  ## And add a chapter number, if it exists.
+  if $pagedata.exists('chapter') {
+    $pagedef<chapter> = $pagedata<chapter>;
+  }
+
   ## And now, for some magic tricks.
   ## If your templates need extra fields from the
   ## page data, you can include a field called
@@ -254,11 +288,62 @@ method !add-to-list (%page, $tag?, $story?) {
     }
   }
 
-  if ($story) {
-    $cache.push: $pagedef;
+  ## Put things in there place.
+  my $added = False;
+  my $smartlist = False;
+  if ($.config.exists('smartlist')) {
+    $smartlist = $.config<smartlist>;
   }
-  else {
-    $cache.unshift: $pagedef;
+  if $cache.elems > 0 { ## If there are items, lets do some magic.
+    loop (my $i=0; $i < $cache.elems; $i++) {
+      ## Handle the old link.
+      if $cache[$i]<link> eq $pagelink {
+        #say " * Updating '$pagelink' in cache.";
+        if ($story) { ## Story pages should be put back in the same place.
+          $cache.splice($i, 1, $pagedef);
+          $added = True;
+          last;
+        }
+        else { ## Non-story pages should have their old entry removed.
+          $cache.splice($i, 1);
+        }
+      }
+      elsif $smartlist { ## Date and/or chapter comparisons.
+        #say " >> We're using SmartList mode.";
+        if (
+          $story 
+          && $cache[$i].exists('chapter') 
+          && $pagedef.exists('chapter')
+          && $cache[$i]<chapter> > $pagedef<chapter>
+        ) { ## Unlikely, but possible when importing.
+          #say " >> A story entry was found in wrong order.";
+          $cache.splice($i, 0, $pagedef);
+          $added = True;
+          last;
+        }
+        elsif (
+          !$story
+          && !$added
+          && $cache[$i].exists('updated')
+        ) {
+          my $cdate = self!get-datetime($cache[$i]<updated>);
+          if ($cdate < $updated) {
+            #say " >> Found an entry older {$cdate.posix} than this one {$updated.posix}.";
+            $cache.splice($i, 0, $pagedef);
+            $added = True;
+          }
+        }
+      }
+    }
+  }
+  ## If all else fails, fallback to default behavior.
+  if !$added {
+    if ($story) {
+      $cache.push: $pagedef;
+    }
+    else {
+      $cache.unshift: $pagedef;
+    }
   }
 
   self!save-cache($cachefile, $cache);
@@ -380,10 +465,10 @@ method !parse-page (%page is rw) {
     @plugins.push: |%page<data><plugins>;
   }
   for @plugins -> $module {
-    print " - Calling '$module' plugin... ";
+    #print " - Calling '$module' plugin... ";
     my $plugin = self!load-plugin($module);
     $plugin.parse(%page);
-    say "done.";
+    #say "done.";
   }
 
   my $metadata = %page<data>;
@@ -401,16 +486,16 @@ method !parse-page (%page is rw) {
   ## Let's get the template, and generate the page itself.
   my $template = $!config<templates>{$type};
   if (defined $!flower) {
-    print " replanting Flower, ";
+    #print " replanting Flower, ";
     $!flower.=another(:file($template));
   }
   else {
     $!flower = Flower.new(:file($template));
     if $!config<templates>.exists('plugins') {
       my @modifiers = $!config<templates><plugins>;
-      for @modifiers -> $modifier {
-        print "loading $modifier, ";
-      }
+#      for @modifiers -> $modifier {
+#        print "loading $modifier, ";
+#      }
       $!flower.load-modifiers(|@modifiers);
     }
   }
@@ -442,13 +527,13 @@ method !make-output-path ($folder) {
 
 ## Extract the root from a filename.
 method !get-filename ($file) {
-  if %!cache.exists("filename::$file") {
-    return %!cache{"filename::$file"};
+  if %!file-cache.exists($file) {
+    return %!file-cache{$file};
   }
   my @filepath = $file.subst(/\/$/, '').split('/');
   my $filename = @filepath[@filepath.end];
   $filename ~~ s:g/\.xml$//;
-  %!cache{"filename::$file"} = $filename;
+  %!file-cache{$file} = $filename;
   return $filename;
 }
 
@@ -456,8 +541,8 @@ method !get-filename ($file) {
 method !page-path (%page) {
   my $file = %page<file>;
   my $opts = %page<data>;
-  if (%!cache.exists($file)) {
-    return %!cache{$file};
+  if (%!page-cache.exists($file)) {
+    return %!page-cache{$file};
   }
   my $filename = self!get-filename($file);
 
@@ -485,7 +570,7 @@ method !page-path (%page) {
   }
   self!make-output-path($dir);
   my $outpath = $dir ~ '/' ~ $filename ~ '.html';
-  %!cache{$file} = $outpath;
+  %!page-cache{$file} = $outpath;
   return $outpath;
 }
 
@@ -510,24 +595,24 @@ method !index-path ($page=1, $tag?) {
 ## Story paths are used both for the story index
 ## and the story pages. So, here's the common version.
 method !story-folder ($file) {
-  if %!cache.exists("folder::$file") {
-    return %!cache{"folder::$file"};
+  if %!folder-cache.exists($file) {
+    return %!folder-cache{$file};
   }
   my $filename = self!get-filename($file);
   my $folder = '/stories/' ~ $filename;
-  %!cache{"folder::$file"} = $folder;
+  %!folder-cache{$file} = $folder;
   return $folder;
 }
 
 ## The path for the story table of contents.
 method !story-path ($file) {
-  if (%!cache.exists($file)) {
-    return %!cache{$file};
+  if (%!page-cache.exists($file)) {
+    return %!page-cache{$file};
   }
   my $folder = self!story-folder($file);
   self!make-output-path($folder);
   my $outpath = $folder ~ '/index.html';
-  %!cache{$file} = $outpath;
+  %!page-cache{$file} = $outpath;
   return $outpath;
 }
 
@@ -544,8 +629,8 @@ method !index-cache ($tag? is copy) {
 
 ## Cache path for stories
 method !story-cache ($file) {
-  if (%!cache.exists("story::$file")) {
-    return %!cache{"story::$file"};
+  if (%!story-cache.exists($file)) {
+    return %!story-cache{$file};
   }
   my $filename = self!get-filename($file);
 
@@ -555,7 +640,7 @@ method !story-cache ($file) {
   }
   mkdir $dir, :p;
   my $cachedir = $dir ~ '/' ~ "$filename.json";
-  %!cache{"story::$file"} = $cachedir;
+  %!story-cache{$file} = $cachedir;
   return $cachedir;
 }
 

@@ -1,0 +1,3 @@
+- Add tests.
+- Add better documentation.
+- Add RSS/Atom support.
