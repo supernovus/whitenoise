@@ -120,7 +120,7 @@ method !build-page ($file) {
   if (%page<data>.exists('parent')) {
     self!process-story(%page);
   }
-  else {
+  elsif (!%page<data><noindex>) {
     self!process-indexes(%page);
   }
 }
@@ -552,17 +552,17 @@ method !page-path (%page) {
   }
   else {
     $dir = '/articles';
-    if ($opts.exists('changelog')) { # Please put changelog in newest first.
+    $date = False;
+    if ($opts.exists('updated')) {
+      $date = $opts<updated>;
+    }
+    elsif ($opts.exists('changelog')) { # Please put changelog in newest first.
       my $cl = $opts<changelog>;
       my $last = $cl[$cl.end];
-      my $date = $last<date>;
-      my $dt;
-      if ($date ~~ /^\d+$/) {
-        $dt = DateTime.new(+$date);
-      }
-      else {
-        $dt = DateTime.new(~$date);
-      }
+      $date = $last<date>;
+    }
+    if ($date) {
+      my $dt = self!get-datetime($date);
       my $year = $dt.year;
       my $month = '%02d'.sprintf($dt.month);
       $dir ~= '/' ~ $year ~ '/' ~ $month;
