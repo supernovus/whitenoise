@@ -104,8 +104,8 @@ method regenerate ($index?, $story?) {
       self.add-page($item<file>);
     }
     elsif $item<type> eq 'story' {
-      my $story = self!story-cache($item<file>);
-      self.regenerate($story, True);
+      my $storycache = self!story-cache($item<file>);
+      self.regenerate($storycache, True);
     }
   }
 }
@@ -215,7 +215,7 @@ method !add-to-list (%page, $tag?, $story?) {
   }
   elsif $pagedata.exists('changelog') {
     my $newest = $pagedata<changelog>[0]<date>;
-    $updated = self!get-datetime($pagedata<changelog>[0]<date>);
+    $updated = self!get-datetime($newest);
   }
   elsif $pagedata.exists('items') {
     my $pageitems = $pagedata<items>;
@@ -297,6 +297,7 @@ method !add-to-list (%page, $tag?, $story?) {
   if ($.config.exists('smartlist')) {
     $smartlist = $.config<smartlist>;
   }
+
   if $cache.elems > 0 { ## If there are items, lets do some magic.
     loop (my $i=0; $i < $cache.elems; $i++) {
       ## Handle the old link.

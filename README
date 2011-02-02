@@ -1,6 +1,21 @@
 WhiteNoise: A Static Site Builder
 ------------------------------------
 
+= WARNING =
+
+WhiteNoise is currently not being worked on.
+
+The speed of the current implementation is abysmal and so I wrote
+GreyNoise, an implementation of WhiteNoise in Perl 5.
+
+While doing so, I discovered a few issues with the current implementation
+of WhiteNoise, some of which are fairly significant bugs/limitations.
+
+When I resume work on this, I will bring the changes from GreyNoise back
+over to WhiteNoise again. Until then, please see GreyNoise:
+
+http://github.com/supernovus/greynoise/
+
 = Introduction =
 
 WhiteNoise is a Perl 6 application for building and maintaining static websites.
