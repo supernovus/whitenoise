@@ -10,6 +10,5 @@
     "DateTime::Utils",
     "File::Tools"
   ],
-  "repo-type"   : "git",
-  "repo-url"    : "git://github.com/supernovus/whitenoise.git"
+  "source-url"    : "git://github.com/supernovus/whitenoise.git"
 }
